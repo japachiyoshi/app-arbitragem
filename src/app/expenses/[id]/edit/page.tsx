@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,24 +16,51 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft, Save } from 'lucide-react';
 import { EXPENSE_CATEGORIES, PERIODICITY } from '@/lib/constants';
+import type { Expense } from '@/lib/types';
 
-export default function NewExpensePage() {
+export default function EditExpensePage() {
   const router = useRouter();
+  const params = useParams();
   const [isLoading, setIsLoading] = useState(false);
+  const [expense, setExpense] = useState<Expense | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
     category: '',
     value: '',
-    date: new Date().toISOString().split('T')[0],
+    date: '',
     notes: '',
-    // Campos específicos
     partnerId: '',
     periodicity: '',
     phoneNumber: '',
     plan: '',
     renewalDate: '',
   });
+
+  useEffect(() => {
+    // Carregar despesa do localStorage
+    const savedExpenses = localStorage.getItem('expenses');
+    if (savedExpenses) {
+      const expenses = JSON.parse(savedExpenses);
+      const foundExpense = expenses.find((exp: any) => exp.id === params.id);
+      
+      if (foundExpense) {
+        setExpense(foundExpense);
+        setFormData({
+          name: foundExpense.name || '',
+          category: foundExpense.category || '',
+          value: foundExpense.value?.toString() || '',
+          date: foundExpense.date ? new Date(foundExpense.date).toISOString().split('T')[0] : '',
+          notes: foundExpense.notes || '',
+          partnerId: foundExpense.partnerId || '',
+          periodicity: foundExpense.periodicity || '',
+          phoneNumber: foundExpense.phoneNumber || '',
+          plan: foundExpense.plan || '',
+          renewalDate: foundExpense.renewalDate ? new Date(foundExpense.renewalDate).toISOString().split('T')[0] : '',
+        });
+      }
+    }
+  }, [params.id]);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -44,18 +71,15 @@ export default function NewExpensePage() {
     setIsLoading(true);
 
     try {
-      // Criar objeto de despesa
-      const newExpense = {
-        id: `expense-${Date.now()}`,
-        userId: 'user1',
+      // Atualizar despesa
+      const updatedExpense = {
+        ...expense,
         name: formData.name,
         category: formData.category,
         value: parseFloat(formData.value),
         date: new Date(formData.date),
         notes: formData.notes,
-        createdAt: new Date(),
         updatedAt: new Date(),
-        // Campos específicos
         partnerId: formData.partnerId || undefined,
         periodicity: formData.periodicity || undefined,
         phoneNumber: formData.phoneNumber || undefined,
@@ -63,25 +87,27 @@ export default function NewExpensePage() {
         renewalDate: formData.renewalDate ? new Date(formData.renewalDate) : undefined,
       };
 
-      // Carregar despesas existentes do localStorage
+      // Carregar despesas do localStorage
       const savedExpenses = localStorage.getItem('expenses');
       const expenses = savedExpenses ? JSON.parse(savedExpenses) : [];
 
-      // Adicionar nova despesa
-      expenses.push(newExpense);
+      // Atualizar a despesa
+      const updatedExpenses = expenses.map((exp: any) => 
+        exp.id === params.id ? updatedExpense : exp
+      );
 
       // Salvar no localStorage
-      localStorage.setItem('expenses', JSON.stringify(expenses));
+      localStorage.setItem('expenses', JSON.stringify(updatedExpenses));
 
-      // Redirecionar para a página de despesas
+      // Redirecionar
       setTimeout(() => {
         setIsLoading(false);
         router.push('/expenses');
       }, 500);
     } catch (error) {
-      console.error('Erro ao salvar despesa:', error);
+      console.error('Erro ao atualizar despesa:', error);
       setIsLoading(false);
-      alert('Erro ao salvar despesa. Tente novamente.');
+      alert('Erro ao atualizar despesa. Tente novamente.');
     }
   };
 
@@ -181,6 +207,14 @@ export default function NewExpensePage() {
     }
   };
 
+  if (!expense) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-gray-500">Carregando...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
@@ -189,8 +223,8 @@ export default function NewExpensePage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Nova Despesa</h1>
-          <p className="text-gray-600 mt-1">Registre uma nova despesa</p>
+          <h1 className="text-3xl font-bold text-gray-900">Editar Despesa</h1>
+          <p className="text-gray-600 mt-1">Atualize as informações da despesa</p>
         </div>
       </div>
 
@@ -301,7 +335,7 @@ export default function NewExpensePage() {
           </Button>
           <Button type="submit" className="flex-1" disabled={isLoading}>
             <Save className="h-4 w-4 mr-2" />
-            {isLoading ? 'Salvando...' : 'Salvar Despesa'}
+            {isLoading ? 'Salvando...' : 'Salvar Alterações'}
           </Button>
         </div>
       </form>

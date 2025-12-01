@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,47 +29,6 @@ import {
 import { formatCurrency, EXPENSE_CATEGORIES } from '@/lib/constants';
 import type { Expense } from '@/lib/types';
 
-// Dados mockados
-const mockExpenses: Expense[] = [
-  {
-    id: '1',
-    userId: 'user1',
-    name: 'Pagamento Parceiro João',
-    category: 'parcerias',
-    value: 500.00,
-    date: new Date('2024-01-15'),
-    notes: 'Pagamento mensal',
-    partnerId: 'partner1',
-    periodicity: 'mensal',
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-15'),
-  },
-  {
-    id: '2',
-    userId: 'user1',
-    name: 'Gasolina',
-    category: 'transportes',
-    value: 250.00,
-    date: new Date('2024-01-14'),
-    notes: 'Abastecimento semanal',
-    createdAt: new Date('2024-01-14'),
-    updatedAt: new Date('2024-01-14'),
-  },
-  {
-    id: '3',
-    userId: 'user1',
-    name: 'Chip Claro',
-    category: 'chips',
-    value: 89.90,
-    date: new Date('2024-01-10'),
-    phoneNumber: '(11) 98765-4321',
-    plan: 'Controle 20GB',
-    renewalDate: new Date('2024-02-10'),
-    createdAt: new Date('2024-01-10'),
-    updatedAt: new Date('2024-01-10'),
-  },
-];
-
 const categoryIcons: Record<string, any> = {
   parcerias: Users,
   telefones: Smartphone,
@@ -93,19 +52,42 @@ export default function ExpensesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [mounted, setMounted] = useState(false);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  // Garante que a data seja renderizada apenas no cliente
-  useState(() => {
+  // Carregar despesas do localStorage
+  useEffect(() => {
     setMounted(true);
-  });
+    const savedExpenses = localStorage.getItem('expenses');
+    if (savedExpenses) {
+      const parsed = JSON.parse(savedExpenses);
+      // Converter strings de data para objetos Date
+      const expensesWithDates = parsed.map((exp: any) => ({
+        ...exp,
+        date: new Date(exp.date),
+        createdAt: new Date(exp.createdAt),
+        updatedAt: new Date(exp.updatedAt),
+        renewalDate: exp.renewalDate ? new Date(exp.renewalDate) : undefined,
+      }));
+      setExpenses(expensesWithDates);
+    }
+  }, []);
+
+  // Função para deletar despesa
+  const handleDelete = (id: string) => {
+    if (confirm('Tem certeza que deseja excluir esta despesa?')) {
+      const updatedExpenses = expenses.filter(exp => exp.id !== id);
+      setExpenses(updatedExpenses);
+      localStorage.setItem('expenses', JSON.stringify(updatedExpenses));
+    }
+  };
 
   const filteredExpenses = useMemo(() => {
-    return mockExpenses.filter((expense) => {
+    return expenses.filter((expense) => {
       const matchesSearch = expense.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = categoryFilter === 'all' || expense.category === categoryFilter;
       return matchesSearch && matchesCategory;
     });
-  }, [searchTerm, categoryFilter]);
+  }, [searchTerm, categoryFilter, expenses]);
 
   const totalExpenses = useMemo(() => {
     return filteredExpenses.reduce((sum, expense) => sum + expense.value, 0);
@@ -181,46 +163,48 @@ export default function ExpensesPage() {
       </Card>
 
       {/* Resumo por Categoria */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card className="sm:col-span-2 lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Despesas por Categoria</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {expensesByCategory.map((category) => (
-                <div key={category.value} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
-                        {getCategoryIcon(category.value)}
+      {expensesByCategory.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Card className="sm:col-span-2 lg:col-span-3">
+            <CardHeader>
+              <CardTitle>Despesas por Categoria</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {expensesByCategory.map((category) => (
+                  <div key={category.value} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                          {getCategoryIcon(category.value)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{category.label}</p>
+                          <p className="text-sm text-gray-500">{category.count} despesa(s)</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{category.label}</p>
-                        <p className="text-sm text-gray-500">{category.count} despesa(s)</p>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">
+                          {formatCurrency(category.total)}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {category.percentage.toFixed(1)}%
+                        </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900">
-                        {formatCurrency(category.total)}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {category.percentage.toFixed(1)}%
-                      </p>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all"
+                        style={{ width: `${category.percentage}%` }}
+                      />
                     </div>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all"
-                      style={{ width: `${category.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Total */}
       <Card className="bg-gradient-to-br from-red-50 to-orange-50 border-0">
@@ -281,10 +265,17 @@ export default function ExpensesPage() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="icon">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-red-600">
+                    <Link href={`/expenses/${expense.id}/edit`}>
+                      <Button variant="ghost" size="icon">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-red-600"
+                      onClick={() => handleDelete(expense.id)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -300,7 +291,9 @@ export default function ExpensesPage() {
                 Nenhuma despesa encontrada
               </h3>
               <p className="text-gray-600 mb-6">
-                Comece registrando suas despesas
+                {expenses.length === 0 
+                  ? 'Comece registrando suas despesas' 
+                  : 'Tente ajustar os filtros de busca'}
               </p>
               <Link href="/expenses/new">
                 <Button>
